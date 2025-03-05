@@ -1,106 +1,203 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
-import { getFarmTypes, getCrops, api } from '../../utils/api'; // Assuming you've exported 'api' from api.js
+import {
+  View,
+  Text,
+  ScrollView,
+  Alert,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  FlatList,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 const AdminConfigScreen = () => {
-  const [farmTypes, setFarmTypes] = useState([]);
   const [crops, setCrops] = useState([]);
-  const [newFarmType, setNewFarmType] = useState('');
-  const [newCrop, setNewCrop] = useState('');
-  const [loading, setLoading] = useState(false); // Add loading state
+  const [farmTypes, setFarmTypes] = useState([]);
 
-useEffect(() => {
-    fetchData();
-}, []);
+  const [token, setToken] = useState(null);
+  const [isCropModalVisible, setIsCropModalVisible] = useState(false);
+  const [isFarmTypeModalVisible, setIsFarmTypeModalVisible] = useState(false);
 
-  const fetchData = async () => {
-    setLoading(true); // Start loading
+  const [cropData, setCropData] = useState({ crop_name: '' });
+  const [farmTypeData, setFarmTypeData] = useState({ farm_type_name: '' });
+
+  useEffect(() => {
+    AsyncStorage.getItem('userToken').then((value) => {
+      if (value) {
+        setToken(value);
+        handleFetchCrop(value);
+        handleFetchFarmType(value);
+      }
+    });
+  }, []);
+
+  const handleSubmitCrop = async () => {
     try {
-      const farmTypesResponse = await getFarmTypes();
-      setFarmTypes(farmTypesResponse.data);
-      const cropsResponse = await getCrops();
-      setCrops(cropsResponse.data);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      Alert.alert('Error', 'Failed to fetch data. Please check your network connection.');
-    } finally {
-      setLoading(false); // Stop loading
-    }
-  };
-
-  const handleAddFarmType = async () => {
-    if (!newFarmType.trim()) {
-      Alert.alert('Validation Error', 'Farm type name cannot be empty.');
-      return;
-    }
-    setLoading(true);
-    try {
-      await api.post('/farmtype/', { name: newFarmType });
-      setNewFarmType('');
-      fetchData();
-      Alert.alert('Success', 'Farm type added successfully.');
-    } catch (error) {
-      console.error('Error adding farm type:', error);
-      Alert.alert('Error', 'Failed to add farm type. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAddCrop = async () => {
-    if (!newCrop.trim()) {
-      Alert.alert('Validation Error', 'Crop name cannot be empty.');
-      return;
-    }
-    setLoading(true);
-    try {
-      await api.post('/crop/', { name: newCrop });
-      setNewCrop('');
-      fetchData();
-      Alert.alert('Success', 'Crop added successfully.');
+      await axios.post('http://127.0.0.1:8000/api/crop/', cropData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      Alert.alert('Success', 'Crop added successfully');
+      setIsCropModalVisible(false);
+      setCropData({ crop_name: '' });
+      handleFetchCrop(token);
     } catch (error) {
       console.error('Error adding crop:', error);
-      Alert.alert('Error', 'Failed to add crop. Please try again.');
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', 'Failed to add crop.');
+    }
+  };
+
+  const handleSubmitFarmType = async () => {
+    try {
+      await axios.post('http://127.0.0.1:8000/api/farmtype/', farmTypeData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      Alert.alert('Success', 'Farm type added successfully');
+      setIsFarmTypeModalVisible(false);
+      setFarmTypeData({ farm_type_name: '' });
+      handleFetchFarmType(token);
+    } catch (error) {
+      console.error('Error adding farm type:', error);
+      Alert.alert('Error', 'Failed to add farm type.');
+    }
+  };
+
+  const handleFetchCrop = async (token) => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/api/crop/', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setCrops(response.data);
+    } catch (error) {
+      console.error('Error fetching crops:', error);
+      Alert.alert('Error', 'Failed to fetch crops.');
+    }
+  };
+
+  const handleFetchFarmType = async (token) => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/api/farmtype/', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setFarmTypes(response.data);
+    } catch (error) {
+      console.error('Error fetching farmtypes:', error);
+      Alert.alert('Error', 'Failed to fetch farmtypes.');
     }
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Admin Configuration</Text>
-      {loading && <ActivityIndicator size="large" color="#0000ff" />}
-      <Text style={styles.sectionTitle}>Farm Types</Text>
-      {farmTypes.map((type) => (
-        <Text key={type.id} style={styles.listItem}>{type.farm_type_name}</Text>
-      ))}
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="New Farm Type"
-          value={newFarmType}
-          onChangeText={setNewFarmType}
-        />
-        <Button title="Add Farm Type" onPress={handleAddFarmType} />
+    <View style={styles.container}>
+      {/* Header Buttons */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={[styles.button, styles.greenButton]} onPress={() => setIsCropModalVisible(true)}>
+          <Text style={styles.buttonText}>Add Crops</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, styles.blueButton]} onPress={() => setIsFarmTypeModalVisible(true)}>
+          <Text style={styles.buttonText}>Add Farm Types</Text>
+        </TouchableOpacity>
       </View>
 
+      {/* Crop Modal */}
+      <Modal visible={isCropModalVisible} animationType="slide" transparent>
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Crop</Text>
+            <TextInput
+              style={styles.input}
+              value={cropData.crop_name}
+              placeholder="Enter Crop Name"
+              onChangeText={(text) => setCropData({ ...cropData, crop_name: text })}
+            />
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity style={[styles.button, styles.greenButton]} onPress={handleSubmitCrop}>
+                <Text style={styles.buttonText}>Submit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.button, styles.redButton]} onPress={() => setIsCropModalVisible(false)}>
+                <Text style={styles.buttonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Farm Type Modal */}
+      <Modal visible={isFarmTypeModalVisible} animationType="slide" transparent>
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Add Farm Type</Text>
+            <TextInput
+              style={styles.input}
+              value={farmTypeData.farm_type_name}
+              placeholder="Enter Farm Type"
+              onChangeText={(text) => setFarmTypeData({ ...farmTypeData, farm_type_name: text })}
+            />
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity style={[styles.button, styles.blueButton]} onPress={handleSubmitFarmType}>
+                <Text style={styles.buttonText}>Submit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.button, styles.redButton]} onPress={() => setIsFarmTypeModalVisible(false)}>
+                <Text style={styles.buttonText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Crop Table */}
       <Text style={styles.sectionTitle}>Crops</Text>
-      {crops.map((crop) => (
-        <Text key={crop.id} style={styles.listItem}>{crop.crop_name}</Text>
-      ))}
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="New Crop"
-          value={newCrop}
-          onChangeText={setNewCrop}
-        />
-        <Button title="Add Crop" onPress={handleAddCrop} />
-      </View>
-    </ScrollView>
+      <FlatList
+        data={crops}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.tableRow}>
+            <Text style={styles.cell}>{item.id}</Text>
+            <Text style={styles.cell}>{item.crop_name}</Text>
+          </View>
+        )}
+      />
+
+      {/* Farm Types Table */}
+      <Text style={styles.sectionTitle}>Farm Types</Text>
+      <FlatList
+        data={farmTypes}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.tableRow}>
+            <Text style={styles.cell}>{item.id}</Text>
+            <Text style={styles.cell}>{item.farm_type_name}</Text>
+          </View>
+        )}
+      />
+    </View>
   );
 };
 
-// ... (styles remain the same)
+// Styles
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 20, backgroundColor: '#f8f9fa' },
+  
+  buttonContainer: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
+
+  button: { padding: 12, borderRadius: 8, alignItems: 'center', width: '45%' },
+  greenButton: { backgroundColor: '#28a745' },
+  blueButton: { backgroundColor: '#007bff' },
+  redButton: { backgroundColor: '#dc3545' },
+  buttonText: { color: '#fff', fontWeight: 'bold' },
+
+  modalBackground: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalContent: { backgroundColor: 'white', padding: 20, borderRadius: 10, width: '80%' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
+  modalButtonContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
+
+  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 5, padding: 10, marginBottom: 10 },
+
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginTop: 20 },
+  tableRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#ccc' },
+  cell: { flex: 1, textAlign: 'center' },
+});
 
 export default AdminConfigScreen;
