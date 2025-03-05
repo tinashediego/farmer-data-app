@@ -1,7 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'http://127.0.0.1:8000/api/auth';
+const BASE_URL = 'http://127.0.0.1:8000/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -16,7 +16,7 @@ api.interceptors.request.use(async (config) => {
 });
 
 export const login = async (email, password) => {
-  return api.post('/login/', { email, password });
+  return api.post('/auth/login/', { email, password });
 };
 
 export const getFarmTypes = async () => {
